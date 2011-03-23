@@ -23,6 +23,7 @@ class active : public item
 {
  public:
   typedef boost::shared_ptr<active> ptr;
+  enum kind_t {kLOCAL, kREMOTE};
 	
   active( const vec2d& );
   active( const vec2d&,const vec2d& );
@@ -32,6 +33,10 @@ class active : public item
   /** Act on the data provided by user input, AI etc */
   virtual void update()=0;
   virtual const float radiusSqrd() const=0;
+
+  // only some object types can be remote, and they'll re-implement
+  // this method
+  virtual kind_t kind() const { return kLOCAL; }
 };
 
 class shape : public active

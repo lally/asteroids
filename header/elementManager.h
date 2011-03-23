@@ -95,6 +95,9 @@ class elementManager
   /** Calculate all possible collisions */
   void collide();
 	
+  int localActives(activeContainer* dest);
+  int remoteActives(activeContainer* dest);
+
  private:
   elementManager();
   mutable pthread_mutex_t m_mutex;

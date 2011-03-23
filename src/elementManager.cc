@@ -225,6 +225,42 @@ void elementManager::erase(passive* Arg)
   return;
 }
 
+int elementManager::localActives(elementManager::activeContainer* dest) {
+  Lock m(m_mutex);
+  int count = 0;
+  for (int i=0; i<m_activePopulation.size(); ++i) {
+    if (m_activePopulation[i]->kind() == active::kLOCAL) {
+      dest->push_back(m_activePopulation[i]);
+      count++;
+    }
+  }
+  for (int i=0; i<m_activeAddEntries.size(); ++i) {
+    if (m_activeAddEntries[i]->kind() == active::kLOCAL) {
+      dest->push_back(m_activePopulation[i]);
+      count++;
+    }
+  }
+  return count;
+}
+
+int elementManager::remoteActives(elementManager::activeContainer* dest) {
+  Lock m(m_mutex);
+  int count = 0;
+  for (int i=0; i<m_activePopulation.size(); ++i) {
+    if (m_activePopulation[i]->kind() == active::kREMOTE) {
+      dest->push_back(m_activePopulation[i]);
+      count++;
+    }
+  }
+  for (int i=0; i<m_activeAddEntries.size(); ++i) {
+    if (m_activeAddEntries[i]->kind() == active::kREMOTE) {
+      dest->push_back(m_activePopulation[i]);
+      count++;
+    }
+  }
+  return count;
+}
+
 void elementManager::clear()
 {
   Lock m(m_mutex);

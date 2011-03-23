@@ -52,26 +52,27 @@ class ship : public shape
 {
  public:
   enum{FORWARD,BACKWARD,LEFT,RIGHT,FIRE};
-
-  ship( const vec2d&,control* );
-  ship( const vec2d&,const vec2d&,const vec2d&,control* );
+  ship( const vec2d&,control* , kind_t k = kLOCAL);
+  ship( const vec2d&,const vec2d&,const vec2d&,control* , kind_t k = kLOCAL);
   ship( const ship& );
   virtual ~ship();
 	
   const ship& operator=( const ship& ); 
 
+  void goRemote() { m_kind = kREMOTE; }
   virtual void update();
   virtual void draw();
   //  virtual void draw( const vec2d& );
 
   void setState(vec2d& pos, vec2d& vel, float rot);
+  virtual kind_t  kind() const { return m_kind; }
 	
   virtual control* control_pointer() const;
   virtual void destroy();
 
  private:
   control* m_control;
-
+  kind_t  m_kind;
   float m_thrust;
   float m_rot;
   float m_mass;
@@ -87,7 +88,7 @@ class ship : public shape
   pthread_mutex_t m_mutex;
 };
 
-ship* insertPlayer();
+ship* insertPlayer(active::kind_t k = active::kLOCAL);
 
 /**
  * Rock

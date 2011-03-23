@@ -9,6 +9,7 @@
 
 #include "ship.h"
 #include "lock.h"
+#include "util.h"
 #include <pthread.h>
 // <-- class weapon -->
 
@@ -62,7 +63,7 @@ void weapon::fire( const shape* Parent )
 	
 // <-- ship -->
 
-ship::ship( const vec2d& Position, control* Control ):
+ship::ship( const vec2d& Position, control* Control, active::kind_t k ):
   shape(Position,physics::shipClip(20.0) ),
   m_control( Control ),
   m_thrust( 0.2 ),
@@ -71,7 +72,8 @@ ship::ship( const vec2d& Position, control* Control ):
   m_weapon_one( new weapon() ),
   m_invunrableTime(1.0),
   m_updateTime( physics::runTime::create()->now() ),
-  m_mutex(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP)
+  m_mutex(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
+  m_kind(k)
 {
 }
 
@@ -84,7 +86,8 @@ ship::ship( const ship& Arg):
   m_weapon_one( new weapon( *Arg.m_weapon_one) ),
   m_invunrableTime( Arg.m_invunrableTime ),
   m_updateTime( Arg.m_updateTime ),
-  m_mutex(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP)
+  m_mutex(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
+  m_kind(Arg.m_kind)
 {
 }
 
@@ -122,6 +125,7 @@ const ship& ship::operator=( const ship& Arg )
   this->m_weapon_one     = new weapon( *Arg.m_weapon_one );
   this->m_invunrableTime = Arg.m_invunrableTime; 
   this->m_updateTime     = Arg.m_updateTime;
+  this->m_kind = Arg.m_kind;
 
   pthread_mutex_unlock(&m_mutex);
   return *this;
@@ -293,7 +297,7 @@ void rock::destroy()
   return;
 }
 
-ship* insertPlayer()
+ship* insertPlayer(active::kind_t k)
 {
   // insert new player ship
   userControl* input( new userControl );	
@@ -304,7 +308,7 @@ ship* insertPlayer()
   input->addAction(SDLK_RIGHT);
   input->addAction(SDLK_x);
   
-  ship* player( new ship( graphics::display::create()->dimension() * 0.5,input ) );
+  ship* player( new ship( graphics::display::create()->dimension() * 0.5,input, k ) );
 
   elementManager::create()->insert( player );
 
