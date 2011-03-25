@@ -11,6 +11,7 @@
 #include <typeinfo>
 #include <sstream>
 #include <ctime>
+#include <pthread.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
@@ -31,6 +32,7 @@
 // socket for sending our state to client.  if (client || server) {
 // Transmitted at 10 Hz. }
 UDPsocket udpsock;
+pthread_mutex_t peerlock = PTHREAD_MUTEX_INITIALIZER;
 bool have_peer;
 IPaddress peer;
 
@@ -40,7 +42,7 @@ struct bullet_state_t {
 
 struct playerstate_state_t {
   vec2d _position, _velocity;
-  float _rotation;
+  vec2d _orientation;
 };
 
 struct network_update_t {
@@ -89,10 +91,12 @@ static void * io_thread(void * arg /* unused */) {
     
     putchar('r'); fflush(stdout);
     // decode
+    pthread_mutex_lock(&peerlock);
     if (!have_peer) {
       peer = recv_packet->address;
       have_peer = true;
     }
+    pthread_mutex_unlock(&peerlock);
 
     int nr_bl = (recv_packet->len - sizeof(playerstate_state_t)) 
       / sizeof(bullet_state_t);
@@ -115,14 +119,15 @@ static void * io_thread(void * arg /* unused */) {
 	}
       }
       for (int i=0; i<nr_bl; ++i) {
-	em->insert(new shell(upd->_new_bullets[i]._position,
-			     upd->_new_bullets[i]._velocity));
+	active::ptr sh(new shell(upd->_new_bullets[i]._position,
+				 upd->_new_bullets[i]._velocity));
+	em->insert(sh);
       }
     }
     if (!s) {
       s = insertPlayer(active::kREMOTE);
     }
-    s->setState(p._position,  p._velocity,  p._rotation);
+    s->setState(p._position,  p._velocity,  p._orientation);
   }
   // SDLNet_FreePacket this packet when finished with it
   // well, we don't actually clean up, we just run until the
@@ -226,9 +231,11 @@ int main(int argc, char* argv[])
       switch (ch) {
       case 's':
 	server = true;
+	game::setMode(game::kServerMode);
 	break;
       case 'c':
 	client = true;
+	game::setMode(game::kClientMode);
 	if (SDLNet_ResolveHost(&peer, optarg, 31337) != 0) {
 	  puts ("bad server address");
 	  exit(1);
@@ -280,8 +287,6 @@ int main(int argc, char* argv[])
       util::enable_bullet_recording();
       puts ("[recv thread started]");
       send_packet=SDLNet_AllocPacket(16384);
-      send_packet->address.host = peer.host;
-      send_packet->address.port = peer.port;      
     }
 
     printf("done\n");
@@ -331,18 +336,29 @@ int main(int argc, char* argv[])
 	    if ((self = dynamic_cast<ship*>(actives[i].get()))) {
 	      upd->_player._position = self->position();
 	      upd->_player._velocity = self->velocity();
-	      upd->_player._rotation = self->rotation();
+	      upd->_player._orientation = self->orientation();
 	      got_self = true;
 	    }
 	  }
 	  reporting = false;
 	  if (got_self) {
-	    send_packet->len = (sizeof (playerstate_state_t))
-	      + bullets.size()*(sizeof (bullet_state_t));
-	    SDLNet_UDP_Send(udpsock, -1, send_packet); 
+	    bool send = false;
+	    pthread_mutex_lock(&peerlock);
+	    if (have_peer) {
+	      send = true;
+	      send_packet->address.host = peer.host;
+	      send_packet->address.port = peer.port;      
+	    }
+	    pthread_mutex_unlock(&peerlock);
+
+	    if (send) {
+	      send_packet->len = (sizeof (playerstate_state_t))
+		+ bullets.size()*(sizeof (bullet_state_t));
+	      SDLNet_UDP_Send(udpsock, -1, send_packet); 
+	      putchar('S'); fflush(stdout);
+	    }
 	    last_send = now;
 	  }
-	  //	    else { puts("not sending -- no local!"); }
 	}
       }
     }

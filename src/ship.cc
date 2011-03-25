@@ -91,11 +91,11 @@ ship::ship( const ship& Arg):
 {
 }
 
-void ship::setState(vec2d& pos, vec2d& vel, float rot) {
+void ship::setState(vec2d& pos, vec2d& vel, vec2d& orient) {
   Lock m(m_mutex);
   position() = pos;
   velocity() = vel;
-  rotation() = rot;
+  orientation() = orient;
 }
 	
 
@@ -133,6 +133,8 @@ const ship& ship::operator=( const ship& Arg )
 
 void ship::update()
 {
+  if (!m_control)
+    return;
   pthread_mutex_lock(&m_mutex);
   if( m_control->state(FORWARD) )  // forward
     {
@@ -285,9 +287,10 @@ void rock::destroy()
 	
       for( size_t i(0);i<4;++i )
 	{
-	  world->insert( new rock( this->position() + direction * 30.0,
+	  active::ptr rck( new rock( this->position() + direction * 30.0,
 				   direction * 10.0 + this->velocity(),
-				   m_size / 4 ) );
+				     m_size / 4 ));
+	  world->insert( rck);
 	  
 	  direction.rotate( angle );
 	}
@@ -299,18 +302,23 @@ void rock::destroy()
 
 ship* insertPlayer(active::kind_t k)
 {
-  // insert new player ship
-  userControl* input( new userControl );	
+  userControl * input = NULL;
+  if (k == active::kLOCAL) {
+    // insert new player ship
+    input = new userControl;
   
-  input->addAction(SDLK_UP);
-  input->addAction(SDLK_DOWN);
-  input->addAction(SDLK_LEFT);
-  input->addAction(SDLK_RIGHT);
-  input->addAction(SDLK_x);
-  
-  ship* player( new ship( graphics::display::create()->dimension() * 0.5,input, k ) );
+    input->addAction(SDLK_UP);
+    input->addAction(SDLK_DOWN);
+    input->addAction(SDLK_LEFT);
+    input->addAction(SDLK_RIGHT);
+    input->addAction(SDLK_x);
+  }
 
-  elementManager::create()->insert( player );
+  ship* player( new ship( graphics::display::create()->dimension() * 0.5, 
+			  input, k ) );
+
+  active::ptr pl(player);
+  elementManager::create()->insert( pl );
 
   return player;
 }
@@ -404,9 +412,10 @@ void turret::destroy()
   
   for( size_t i(0);i<4;++i )
     {
-      world->insert( new rock( this->position() + direction * 20.0,
+      active::ptr rck(new rock( this->position() + direction * 20.0,
 			       direction * 10.0 + this->velocity(),
-			       1 ) );
+				1 ));
+      world->insert( rck );
       
       direction.rotate( angle );
     }
@@ -438,7 +447,9 @@ std::vector<active::ptr>& generateTurrets( const size_t Count, std::vector<activ
   for( size_t i(0);i<Count;++i )
     {
       velocity.rotate( (rand()/(static_cast<float>(RAND_MAX))) * (2.0 * M_PI) );
-      Container.push_back( active::ptr(new turret( position,velocity,ai::manager::create()->generate<ai::turret>() )) );
+      Container.push_back( active::ptr(new turret( 
+         position,velocity,
+	 ai::manager::create()->generate<ai::turret>() )) );
     }
 
   return Container;

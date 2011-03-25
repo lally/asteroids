@@ -173,7 +173,7 @@ elementManager* elementManager::create()
   return m_ptrToSelf;
 }
 
-void elementManager::insert(active* Arg)
+/*void elementManager::insert(active* Arg)
 {
   Lock m(m_mutex);
   this->insert( active::ptr(Arg) );
@@ -187,7 +187,7 @@ void elementManager::insert(passive* Arg)
   this->insert( passive::ptr(Arg) );
   
   return;
-}
+  }*/
 
 
 void elementManager::insert( active::ptr Arg )
@@ -210,7 +210,8 @@ void elementManager::insert( passive::ptr Arg )
 void elementManager::erase(active* Arg)				// Remove elements from game world
 {
   Lock m(m_mutex);
-  m_activePopulation.erase( remove( m_activePopulation.begin(),m_activePopulation.end(),active::ptr(Arg) ),
+  m_activePopulation.erase( remove( m_activePopulation.begin(),
+				    m_activePopulation.end(),active::ptr(Arg) ),
 			    m_activePopulation.end() );
 
   return;
@@ -219,7 +220,8 @@ void elementManager::erase(active* Arg)				// Remove elements from game world
 void elementManager::erase(passive* Arg)
 {
   Lock m(m_mutex);
-  m_passivePopulation.erase( remove( m_passivePopulation.begin(),m_passivePopulation.end(),passive::ptr(Arg) ),
+  m_passivePopulation.erase( remove( m_passivePopulation.begin(),
+				     m_passivePopulation.end(),passive::ptr(Arg) ),
 			     m_passivePopulation.end() );
 
   return;
@@ -229,14 +231,16 @@ int elementManager::localActives(elementManager::activeContainer* dest) {
   Lock m(m_mutex);
   int count = 0;
   for (int i=0; i<m_activePopulation.size(); ++i) {
-    if (m_activePopulation[i]->kind() == active::kLOCAL) {
-      dest->push_back(m_activePopulation[i]);
+    active::ptr k = m_activePopulation[i];
+    if (k->kind() == active::kLOCAL) {
+      dest->push_back(k);
       count++;
     }
   }
   for (int i=0; i<m_activeAddEntries.size(); ++i) {
-    if (m_activeAddEntries[i]->kind() == active::kLOCAL) {
-      dest->push_back(m_activePopulation[i]);
+    active::ptr k = m_activeAddEntries[i];
+    if (k->kind() == active::kLOCAL) {
+      dest->push_back(k);
       count++;
     }
   }
@@ -247,14 +251,16 @@ int elementManager::remoteActives(elementManager::activeContainer* dest) {
   Lock m(m_mutex);
   int count = 0;
   for (int i=0; i<m_activePopulation.size(); ++i) {
-    if (m_activePopulation[i]->kind() == active::kREMOTE) {
+    active::ptr k = m_activePopulation[i];
+    if (k->kind() == active::kREMOTE) {
       dest->push_back(m_activePopulation[i]);
       count++;
     }
   }
   for (int i=0; i<m_activeAddEntries.size(); ++i) {
-    if (m_activeAddEntries[i]->kind() == active::kREMOTE) {
-      dest->push_back(m_activePopulation[i]);
+    active::ptr k = m_activeAddEntries[i];
+    if (k->kind() == active::kREMOTE) {
+      dest->push_back(k);
       count++;
     }
   }
@@ -407,7 +413,8 @@ void insertStars( const size_t StarCount )
     {
       position.x(display->dimension().x()*(rand()/(static_cast<double>(RAND_MAX))) );
       position.y(display->dimension().y()*(rand()/(static_cast<double>(RAND_MAX))) );
-      world->insert(new star(position));
+      passive::ptr s(new star(position));
+      world->insert(s);
     }
 
   return;
