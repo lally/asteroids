@@ -27,6 +27,10 @@ class ship;
  */
 namespace game
 {
+  enum mode_t { kServerMode, kClientMode, kAloneMode };
+  /* the mode here determines the starting position of 
+     players' ships upon construction */
+  void setMode(mode_t m);
   void checkState();
   void playerDestroyed();
   void newGame();

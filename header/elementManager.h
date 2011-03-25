@@ -68,8 +68,8 @@ class elementManager
   static elementManager* create();  
 
   /** Add elements to game world */
-  void insert(active*);
-  void insert(passive*);
+/*  void insert(active*);
+    void insert(passive*); */
 
   void insert(active::ptr);
   void insert(passive::ptr);
