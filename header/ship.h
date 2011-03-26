@@ -64,7 +64,7 @@ class ship : public shape
   virtual void draw();
   //  virtual void draw( const vec2d& );
 
-  void setState(vec2d& pos, vec2d& vel, vec2d& orientation);
+  void setState(const vec2d& pos, const vec2d& vel, const vec2d& orientation, const float angle);
   virtual kind_t  kind() const { return m_kind; }
 	
   virtual control* control_pointer() const;

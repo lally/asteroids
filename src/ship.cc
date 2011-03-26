@@ -91,11 +91,15 @@ ship::ship( const ship& Arg):
 {
 }
 
-void ship::setState(vec2d& pos, vec2d& vel, vec2d& orient) {
+void ship::setState(const vec2d& pos, const vec2d& vel,
+		    const vec2d& orient,
+		    const float angle) {
   Lock m(m_mutex);
   position() = pos;
   velocity() = vel;
   orientation() = orient;
+  setAngle(angle);
+    //  printf ("setState(orient=(%f, %f))\n", orient.x(), orient.y());
 }
 	
 
@@ -133,34 +137,35 @@ const ship& ship::operator=( const ship& Arg )
 
 void ship::update()
 {
-  if (!m_control)
-    return;
+  //  if (!m_control) 
+  //    return;
   pthread_mutex_lock(&m_mutex);
-  if( m_control->state(FORWARD) )  // forward
-    {
-      this->accelerate( this->orientation() * m_thrust);
-    }
+  if (m_control) {
+    if( m_control->state(FORWARD) )  // forward
+      {
+	this->accelerate( this->orientation() * m_thrust);
+      }
 
-  if( m_control->state(BACKWARD) )  // backward
-    {
-      this->accelerate( this->orientation() * (-m_thrust * 0.1) );
-    }	
+    if( m_control->state(BACKWARD) )  // backward
+      {
+	this->accelerate( this->orientation() * (-m_thrust * 0.1) );
+      }	
 
-  if( m_control->state(LEFT) )  // left
-    {
-      this->rotation() = -m_rot;
-    }
+    if( m_control->state(LEFT) )  // left
+      {
+	this->rotation() = -m_rot;
+      }
 	
-  if( m_control->state(RIGHT) )  // right
-    {
-      this->rotation() = m_rot;
-    }
+    if( m_control->state(RIGHT) )  // right
+      {
+	this->rotation() = m_rot;
+      }
 
-  if( m_control->state(FIRE) )  // fire
-    {
-      m_weapon_one->fire(this);
-    }
-
+    if( m_control->state(FIRE) )  // fire
+      {
+	m_weapon_one->fire(this);
+      }
+  }
   const physics::time_t now( physics::runTime::create()->now() );
   const physics::time_t duration( now - m_updateTime );
   

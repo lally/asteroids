@@ -42,7 +42,7 @@ struct bullet_state_t {
 
 struct playerstate_state_t {
   vec2d _position, _velocity;
-  vec2d _orientation;
+  float _angle;
 };
 
 struct network_update_t {
@@ -127,7 +127,9 @@ static void * io_thread(void * arg /* unused */) {
     if (!s) {
       s = insertPlayer(active::kREMOTE);
     }
-    s->setState(p._position,  p._velocity,  p._orientation);
+    vec2d rot(0.0,-1.0);
+    s->setState(p._position,  p._velocity, rot.rotate(p._angle),
+		p._angle);
   }
   // SDLNet_FreePacket this packet when finished with it
   // well, we don't actually clean up, we just run until the
@@ -336,7 +338,7 @@ int main(int argc, char* argv[])
 	    if ((self = dynamic_cast<ship*>(actives[i].get()))) {
 	      upd->_player._position = self->position();
 	      upd->_player._velocity = self->velocity();
-	      upd->_player._orientation = self->orientation();
+	      upd->_player._angle = self->angle();
 	      got_self = true;
 	    }
 	  }

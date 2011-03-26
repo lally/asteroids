@@ -82,6 +82,10 @@ class item : public graphics::drawable
      return m_angle;
     }  
 
+  void setAngle(float f) {
+    m_angle = f;
+  }
+
   /** Marks the Object for removal */
   virtual void destroy();										
   virtual const bool destroyed() const;
