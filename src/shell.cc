@@ -23,25 +23,44 @@
  */
 
 #include "shell.h"
-
+#include "lock.h"
+#include <pthread.h>
 //<-- shell class -->
+
+
+static int s_shell_cnt;
+static pthread_mutex_t s_shellcnt_lock = PTHREAD_MUTEX_INITIALIZER;
 
 shell::shell(const vec2d& Position, const vec2d& Velocity ):
   particle( Position,Velocity,2.0 ),
      m_range( 450.0 ),
      m_travel(0.0),
      m_updateTime(physics::runTime::create()->now())
-{}
+{
+  Lock m(s_shellcnt_lock);
+  s_shell_cnt++;
+}
 
 shell::shell( const shell& Arg ):
   particle( Arg ),
      m_range( Arg.m_range ),
      m_travel( Arg.m_travel ),
      m_updateTime( Arg.m_updateTime )
-{}
+{
+  Lock m(s_shellcnt_lock);
+  s_shell_cnt++;
+}
 
 shell::~shell()
-{}
+{
+  Lock m(s_shellcnt_lock);
+  s_shell_cnt--;
+}
+
+int shell::shellCount() {
+  Lock m(s_shellcnt_lock);
+  return s_shell_cnt;
+}
 
 const shell& shell::operator=( const shell& Arg )
 {

@@ -228,6 +228,9 @@ void ship::destroy()
 }
 
 // Rock 
+static int s_rock_cnt;
+pthread_mutex_t s_rockcnt_lock = PTHREAD_MUTEX_INITIALIZER;
+
 rock::rock( const vec2d& Location,const vec2d& Velocity,const size_t Size ):
   shape( Location,Velocity,physics::rockClip( Size*10.0,Size*2 + 3 ) ),
   m_size(Size),
@@ -235,14 +238,21 @@ rock::rock( const vec2d& Location,const vec2d& Velocity,const size_t Size ):
 {
   this->rotation() = (std::rand())/static_cast<float>(RAND_MAX) - 0.5;
  
-  game::state::create()->targetAdded();
+  game::state::create()->targetAdded(); 
+  {
+  Lock m(s_rockcnt_lock);
+  s_rock_cnt++;
+  }
 }
 
 rock::rock( const rock& Arg ):
   shape(Arg),
   m_size(Arg.size()),
   m_updateTime( Arg.m_updateTime )
-{}
+{
+  Lock m(s_rockcnt_lock);
+  s_rock_cnt++;
+}
 
 rock::~rock()
 {
@@ -253,6 +263,15 @@ rock::~rock()
     }
   catch(...)
     {}
+  {
+  Lock m(s_rockcnt_lock);
+  s_rock_cnt--;
+  }
+}
+
+int rock::rockCount() {
+  Lock m(s_rockcnt_lock);
+  return s_rock_cnt;
 }
 
 const rock& rock::operator=( const rock& Arg )

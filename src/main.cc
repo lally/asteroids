@@ -28,6 +28,7 @@
 #include "text.h"
 #include "game.h"
 #include "util.h"
+#include "asteroids.h"
 
 // socket for sending our state to client.  if (client || server) {
 // Transmitted at 10 Hz. }
@@ -37,19 +38,19 @@ bool have_peer;
 IPaddress peer;
 
 struct bullet_state_t {
-  vec2d _position, _velocity;
+    vec2d _position, _velocity;
 };
 
 struct playerstate_state_t {
-  vec2d _position, _velocity;
-  float _angle;
+    vec2d _position, _velocity;
+    float _angle;
 };
 
 struct network_update_t {
-  playerstate_state_t _player;
-  // Use the packet size to determine how many new bullets there
-  // really are.  If we lose a packet, we lose the bullets.
-  bullet_state_t _new_bullets[1];
+    playerstate_state_t _player;
+    // Use the packet size to determine how many new bullets there
+    // really are.  If we lose a packet, we lose the bullets.
+    bullet_state_t _new_bullets[1];
 };
 
 typedef std::pair<struct in_addr, ship*> thread_data_t;
@@ -57,83 +58,91 @@ typedef std::pair<struct in_addr, ship*> thread_data_t;
 
 // receive-handler thread.
 static void * io_thread(void * arg /* unused */) {
-  elementManager::activeContainer actives;
-  puts ("[recv thread running]");
+    elementManager::activeContainer actives;
+    puts ("[recv thread running]");
        
-  //
-  // start listening 
+    //
+    // start listening 
 
-  // alloc packets for listening
-  UDPpacket *recv_packet;
+    // alloc packets for listening
+    UDPpacket *recv_packet;
 
-  recv_packet=SDLNet_AllocPacket(16384);
+    recv_packet=SDLNet_AllocPacket(16384);
     
-  if(!recv_packet) {
-    printf("SDLNet_AllocPacket: %s\n", SDLNet_GetError());
-    exit(1);
-  }
-    
-  const double muzzle_velocity = 150.0;
-  elementManager* em = elementManager::create();
-
-  while (1) {
-    // wait for a packet & read.
-    int retry = 16;
-    int ret;
-    while (SDLNet_UDP_Recv(udpsock, recv_packet) == 0 && retry)
-      retry--;
-
-    if (!retry) {
-      // retries are failing, stop blowing cpu, wait 100ms.
-      usleep(100000);
-      continue;
+    if(!recv_packet) {
+        printf("SDLNet_AllocPacket: %s\n", SDLNet_GetError());
+        exit(1);
     }
     
-    putchar('r'); fflush(stdout);
-    // decode
-    pthread_mutex_lock(&peerlock);
-    if (!have_peer) {
-      peer = recv_packet->address;
-      have_peer = true;
+    const double muzzle_velocity = 150.0;
+    elementManager* em = elementManager::create();
+
+    while (1) {
+        // wait for a packet & read.
+        int retry = 16;
+        int ret;
+        WRITE_ASTEROIDS_R_DB(0);
+        while (SDLNet_UDP_Recv(udpsock, recv_packet) == 0 && retry)
+            retry--;
+
+        if (!retry) {
+            // retries are failing, stop blowing cpu, wait 100ms.
+            usleep(100000);
+            continue;
+        }
+    
+        putchar('r'); fflush(stdout);
+        struct timeval now;
+        gettimeofday(&now,0);
+        WRITE_ASTEROIDS_RECV_START(now);
+        // decode
+        pthread_mutex_lock(&peerlock);
+        if (!have_peer) {
+            peer = recv_packet->address;
+            have_peer = true;
+        }
+        pthread_mutex_unlock(&peerlock);
+
+        int nr_bl = (recv_packet->len - sizeof(playerstate_state_t)) 
+            / sizeof(bullet_state_t);
+
+        WRITE_ASTEROIDS_R_DB(nr_bl);
+        network_update_t *upd = (network_update_t*) recv_packet->data;
+
+        // find the current player & apply the new state -- this is a
+        // little fuzzy, as we may end up applying it to the old
+        // (recently-deceased) player.  It'll get fixed at the next
+        // packet receive.
+
+        // apply
+        playerstate_state_t& p = upd->_player;
+        actives.clear();
+        ship * s = 0;
+        if (em->remoteActives(&actives) > 0) {
+            for (int i=0; i<actives.size(); ++i) {
+                if ((s = dynamic_cast<ship*>(actives[i].get()))) {
+                    break;
+                }
+            }
+            for (int i=0; i<nr_bl; ++i) {
+                active::ptr sh(new shell(upd->_new_bullets[i]._position,
+                                         upd->_new_bullets[i]._velocity));
+                em->insert(sh);
+            }
+        }
+        if (!s) {
+            s = insertPlayer(active::kREMOTE);
+        }
+        vec2d rot(0.0,-1.0);
+        s->setState(p._position,  p._velocity, rot.rotate(p._angle),
+                    p._angle);
+        gettimeofday(&now,0);
+        WRITE_ASTEROIDS_RECV_END(now);
+
     }
-    pthread_mutex_unlock(&peerlock);
-
-    int nr_bl = (recv_packet->len - sizeof(playerstate_state_t)) 
-      / sizeof(bullet_state_t);
-
-    network_update_t *upd = (network_update_t*) recv_packet->data;
-
-    // find the current player & apply the new state -- this is a
-    // little fuzzy, as we may end up applying it to the old
-    // (recently-deceased) player.  It'll get fixed at the next
-    // packet receive.
-
-    // apply
-    playerstate_state_t& p = upd->_player;
-    actives.clear();
-    ship * s = 0;
-    if (em->remoteActives(&actives) > 0) {
-      for (int i=0; i<actives.size(); ++i) {
-	if ((s = dynamic_cast<ship*>(actives[i].get()))) {
-	  break;
-	}
-      }
-      for (int i=0; i<nr_bl; ++i) {
-	active::ptr sh(new shell(upd->_new_bullets[i]._position,
-				 upd->_new_bullets[i]._velocity));
-	em->insert(sh);
-      }
-    }
-    if (!s) {
-      s = insertPlayer(active::kREMOTE);
-    }
-    vec2d rot(0.0,-1.0);
-    s->setState(p._position,  p._velocity, rot.rotate(p._angle),
-		p._angle);
-  }
-  // SDLNet_FreePacket this packet when finished with it
-  // well, we don't actually clean up, we just run until the
-  // program's killed.
+    // SDLNet_FreePacket this packet when finished with it
+    // well, we don't actually clean up, we just run until the
+    // program's killed.
 }
 
 /*! \mainpage Asteroids
@@ -213,166 +222,187 @@ static void * io_thread(void * arg /* unused */) {
  */
 int main(int argc, char* argv[])
 {
-  int ch;
-  bool server = false;
-  bool client = false;
-  struct timeval now, last_send;
-  elementManager::activeContainer actives;
+    int ch;
+    bool server = false;
+    bool client = false;
+    struct timeval now, last_send;
+    elementManager::activeContainer actives;
 
-  try {
-    physics::runTime*  clock( physics::runTime::create() );
-    elementManager*    world( elementManager::create() );
-    graphics::display* Display( graphics::display::create() );
-    game::gui*         gui( game::gui::create() );
-    ai::manager*       ai( ai::manager::create() );
-    UDPpacket *send_packet;
-    IPaddress ipself;
-    int channel;
+    try {
+        physics::runTime*  clock( physics::runTime::create() );
+        elementManager*    world( elementManager::create() );
+        graphics::display* Display( graphics::display::create() );
+        game::gui*         gui( game::gui::create() );
+        ai::manager*       ai( ai::manager::create() );
+        UDPpacket *send_packet;
+        IPaddress ipself;
+        int channel;
 
-    while ((ch = getopt(argc, argv, "sc:h?")) != -1) {
-      switch (ch) {
-      case 's':
-	server = true;
-	game::setMode(game::kServerMode);
-	break;
-      case 'c':
-	client = true;
-	game::setMode(game::kClientMode);
-	if (SDLNet_ResolveHost(&peer, optarg, 31337) != 0) {
-	  puts ("bad server address");
-	  exit(1);
-	}
-	break;
-      default:
-	printf ("unknown option '%c'\n", ch);
-      case 'h':
-      case '?':
-	printf("%s: [-s | -c hostname]\n", argv[0]);
-      printf("  -s: be a server\n");
-      printf("  -c: connect to a server, named 'hostname'\n");
-      exit(1);
-      break;
-      }
-    }
+        while ((ch = getopt(argc, argv, "sc:h?z")) != -1) {
+            switch (ch) {
+            case 's':
+                server = true;
+                game::setMode(game::kServerMode);
+                break;
+            case 'c':
+                client = true;
+                game::setMode(game::kClientMode);
+                if (SDLNet_ResolveHost(&peer, optarg, 31337) != 0) {
+                    puts ("bad server address");
+                    exit(1);
+                }
+                break;
+            case 'z': {
+                printf ("shell: %d\n", sizeof(shell));
+                printf ("ship: %d\n", sizeof(ship));
+                printf ("rock: %d\n", sizeof(rock));
+                printf ("active::ptr: %d\n", sizeof(active::ptr));
+                exit(1);
+                break;
+            }
+            default:
+                printf ("unknown option '%c'\n", ch);
+            case 'h':
+            case '?':
+                printf("%s: [-s | -c hostname]\n", argv[0]);
+            printf("  -s: be a server\n");
+            printf("  -c: connect to a server, named 'hostname'\n");
+            exit(1);
+            break;
+            }
+        }
     
-    printf ("Running asteroids\n");
-    inputState* userInput( inputState::create() );
+        printf ("Running asteroids\n");
+        inputState* userInput( inputState::create() );
     
-    printf("Initializing...");
-    Display->initialise();
+        printf("Initializing...");
+        Display->initialise();
     
-    clock->start();
-    clock->reset();
+        clock->start();
+        clock->reset();
 
-    gettimeofday(&now, 0);
-    gettimeofday(&last_send, 0);
-    if (server || client) {
-      // start up a listening thread and add a (thread-safe)
-      // additional player
+        gettimeofday(&now, 0);
+        gettimeofday(&last_send, 0);
+        if (server || client) {
+            // start up a listening thread and add a (thread-safe)
+            // additional player
 
-      if (server) {
-	if (!(udpsock = SDLNet_UDP_Open(31337))) {
-	  fprintf(stderr, "SDLNet_UDP_Open: %s\n", SDLNet_GetError());
-	  exit(EXIT_FAILURE);
-	}
-      } else {
-	if (!(udpsock = SDLNet_UDP_Open(0))) {
-	  fprintf(stderr, "SDLNet_UDP_Open: %s\n", SDLNet_GetError());
-	  exit(EXIT_FAILURE);
-	}
-	have_peer = true;
-      }
-      ship * remote = insertPlayer();
-      pthread_t thr;
-      int ret = pthread_create(&thr, NULL, io_thread, NULL);
-      assert(ret == 0);
-      util::enable_bullet_recording();
-      puts ("[recv thread started]");
-      send_packet=SDLNet_AllocPacket(16384);
-    }
+            if (server) {
+                if (!(udpsock = SDLNet_UDP_Open(31337))) {
+                    fprintf(stderr, "SDLNet_UDP_Open: %s\n", SDLNet_GetError());
+                    exit(EXIT_FAILURE);
+                }
+            } else {
+                if (!(udpsock = SDLNet_UDP_Open(0))) {
+                    fprintf(stderr, "SDLNet_UDP_Open: %s\n", SDLNet_GetError());
+                    exit(EXIT_FAILURE);
+                }
+                have_peer = true;
+            }
+            ship * remote = insertPlayer();
+            pthread_t thr;
+            int ret = pthread_create(&thr, NULL, io_thread, NULL);
+            assert(ret == 0);
+            util::enable_bullet_recording();
+            puts ("[recv thread started]");
+            send_packet=SDLNet_AllocPacket(16384);
+        }
 
-    printf("done\n");
-    while( !(userInput->quit()) ) {
-      game::checkState();
+        printf("done\n");
+        while( !(userInput->quit()) ) {
+            gettimeofday(&now, 0);
+            WRITE_ASTEROIDS_MAIN_START(now);
+            WRITE_ASTEROIDS_A(rock::rockCount());
+            WRITE_ASTEROIDS_B(shell::shellCount());
+            game::checkState();
 
-      userInput->readInput();
+            userInput->readInput();
 
-      ai->update();
+            ai->update();
 
-      world->update();
-      world->collide();
+            world->update();
+            gettimeofday(&now, 0);
+            WRITE_ASTEROIDS_MAIN_MIDDLE(now);
+            world->collide();
 
-      world->draw();
-      gui->draw();
+            world->draw();
+            gui->draw();
             
-      Display->update();
+            Display->update();
 
-      // transmit at 10 Hz
-      if (server || client) {
-	gettimeofday(&now, 0);
-	if (util::timeval_subtract(now, last_send) >= 0.1) {
-	  // transmit state over.
-	  network_update_t *upd = (network_update_t*) send_packet->data;
-	  std::vector<active::ptr> bullets;
-	  util::get_bullet_ptrs(&bullets);
-	  int j = 0;
-	  for (int i=0; i<bullets.size(); ++i) {
-	    shell *sh = dynamic_cast<shell*>(bullets[i].get());
-	    if (sh) {
-	      upd->_new_bullets[j]._position = sh->position();
-	      upd->_new_bullets[j]._velocity = sh->velocity();
-	      j++;
-	    }
-	  }
-	  // and now the ship
-	  actives.clear();
-	  world->localActives(&actives);
-	  ship *self = 0;
-	  bool got_self = false;
-	  static bool reporting = true;
-	  for (int i=0; i<actives.size(); ++i) {
-	    if (reporting) {
-	      printf("got a %s\n",
-		     typeid(*actives[i].get()).name());
-	    }
-	    if ((self = dynamic_cast<ship*>(actives[i].get()))) {
-	      upd->_player._position = self->position();
-	      upd->_player._velocity = self->velocity();
-	      upd->_player._angle = self->angle();
-	      got_self = true;
-	    }
-	  }
-	  reporting = false;
-	  if (got_self) {
-	    bool send = false;
-	    pthread_mutex_lock(&peerlock);
-	    if (have_peer) {
-	      send = true;
-	      send_packet->address.host = peer.host;
-	      send_packet->address.port = peer.port;      
-	    }
-	    pthread_mutex_unlock(&peerlock);
+            // transmit at 10 Hz
+            if (server || client) {
+                gettimeofday(&now, 0);
+                if (util::timeval_subtract(now, last_send) >= 0.1) {
+                    // transmit state over.
+                    network_update_t *upd = (network_update_t*) send_packet->data;
+                    std::vector<active::ptr> bullets;
+                    util::get_bullet_ptrs(&bullets);
+                    WRITE_ASTEROIDS_SEND_START(now);
+                    WRITE_ASTEROIDS_S_DB(bullets.size());
+                    int j = 0;
+                    for (int i=0; i<bullets.size(); ++i) {
+                        shell *sh = dynamic_cast<shell*>(bullets[i].get());
+                        if (sh) {
+                            upd->_new_bullets[j]._position = sh->position();
+                            upd->_new_bullets[j]._velocity = sh->velocity();
+                            j++;
+                        }
+                    }
+                    // and now the ship
+                    actives.clear();
+                    world->localActives(&actives);
+                    ship *self = 0;
+                    bool got_self = false;
+                    static bool reporting = true;
+                    for (int i=0; i<actives.size(); ++i) {
+                        if (reporting) {
+                            printf("got a %s\n",
+                                   typeid(*actives[i].get()).name());
+                        }
+                        if ((self = dynamic_cast<ship*>(actives[i].get()))) {
+                            upd->_player._position = self->position();
+                            upd->_player._velocity = self->velocity();
+                            upd->_player._angle = self->angle();
+                            got_self = true;
+                        }
+                    }
+                    reporting = false;
+                    if (got_self) {
+                        bool send = false;
+                        pthread_mutex_lock(&peerlock);
+                        if (have_peer) {
+                            send = true;
+                            send_packet->address.host = peer.host;
+                            send_packet->address.port = peer.port;      
+                        }
+                        pthread_mutex_unlock(&peerlock);
 
-	    if (send) {
-	      send_packet->len = (sizeof (playerstate_state_t))
-		+ bullets.size()*(sizeof (bullet_state_t));
-	      SDLNet_UDP_Send(udpsock, -1, send_packet); 
-	      putchar('S'); fflush(stdout);
-	    }
-	    last_send = now;
-	  }
-	}
-      }
+                        if (send) {
+                            send_packet->len = (sizeof (playerstate_state_t))
+                                + bullets.size()*(sizeof (bullet_state_t));
+                            SDLNet_UDP_Send(udpsock, -1, send_packet); 
+                            putchar('S'); fflush(stdout);
+                        }
+                        last_send = now;
+                    }
+                    gettimeofday(&now, 0);
+                    WRITE_ASTEROIDS_SEND_END(now);
+                }
+            }
+            gettimeofday(&now, 0);
+            WRITE_ASTEROIDS_MAIN_END(now);
+            ppt_write_asteroids_frame();
+        }
+        Display->kill();
     }
-    Display->kill();
-  }
-  catch( std::exception& exp ) {
-    std::cout << "Exception: "
-	      << exp.what()
-	      << std::endl
-	      << "exiting"
-	      << std::endl;
-  }
+    catch( std::exception& exp ) {
+        std::cout << "Exception: "
+                  << exp.what()
+                  << std::endl
+                  << "exiting"
+                  << std::endl;
+    }
 
-  exit(EXIT_SUCCESS);
+    exit(EXIT_SUCCESS);
 }
