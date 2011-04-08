@@ -29,6 +29,8 @@ class shell : public particle
   virtual void draw();
   virtual void draw( const vec2d& );
 	
+
+  static int shellCount();
  private:
   /** max distance shell can travel before destroying itself */
   float  m_range;

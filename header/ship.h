@@ -116,6 +116,8 @@ class rock : public shape
       return m_size;
     }
 
+    static int rockCount();
+
  private:
   size_t m_size;
 
