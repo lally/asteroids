@@ -10,6 +10,7 @@
 #include "ship.h"
 #include "lock.h"
 #include "util.h"
+#include "flags.h"
 #include <pthread.h>
 // <-- class weapon -->
 
@@ -50,10 +51,12 @@ void weapon::fire( const shape* Parent )
   if( now > m_time_of_next_fireing )
     {
         // locally-created bullets go into the sync queue.
+        for (int i=0; i<bullet_factor; ++i) {
         active::ptr sh(new shell( Parent->front(),Parent->velocity() 
                                   + Parent->orientation()*m_muzzel_velocity));
         util::note_new_bullet(sh);
         elementManager::create()->insert(sh);
+        }
 	
       m_time_of_next_fireing = now + m_period_of_fire;
     }

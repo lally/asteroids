@@ -19,6 +19,7 @@
 #include <SDL.h>
 #include "SDL_net.h"
 
+#include "flags.h"
 #include "vec2d.h"
 #include "passive.h"
 #include "input.h"
@@ -238,20 +239,20 @@ int main(int argc, char* argv[])
         IPaddress ipself;
         int channel;
 
-        while ((ch = getopt(argc, argv, "sc:h?z")) != -1) {
-            switch (ch) {
-            case 's':
-                server = true;
-                game::setMode(game::kServerMode);
-                break;
-            case 'c':
-                client = true;
-                game::setMode(game::kClientMode);
-                if (SDLNet_ResolveHost(&peer, optarg, 31337) != 0) {
-                    puts ("bad server address");
-                    exit(1);
-                }
-                break;
+    while ((ch = getopt(argc, argv, "sc:h?a:b:z")) != -1) {
+      switch (ch) {
+      case 's':
+	server = true;
+	game::setMode(game::kServerMode);
+	break;
+      case 'c':
+	client = true;
+	game::setMode(game::kClientMode);
+	if (SDLNet_ResolveHost(&peer, optarg, 31337) != 0) {
+	  puts ("bad server address");
+	  exit(1);
+	}
+	break;
             case 'z': {
                 printf ("shell: %d\n", sizeof(shell));
                 printf ("ship: %d\n", sizeof(ship));
@@ -260,17 +261,23 @@ int main(int argc, char* argv[])
                 exit(1);
                 break;
             }
-            default:
-                printf ("unknown option '%c'\n", ch);
-            case 'h':
-            case '?':
-                printf("%s: [-s | -c hostname]\n", argv[0]);
-            printf("  -s: be a server\n");
-            printf("  -c: connect to a server, named 'hostname'\n");
-            exit(1);
-            break;
-            }
-        }
+      case 'a':
+        asteroid_factor = atoi(optarg);
+        break;
+      case 'b':
+        bullet_factor = atoi(optarg);
+        break;
+      default:
+	printf ("unknown option '%c'\n", ch);
+      case 'h':
+      case '?':
+	printf("%s: [-s | -c hostname]\n", argv[0]);
+      printf("  -s: be a server\n");
+      printf("  -c: connect to a server, named 'hostname'\n");
+      exit(1);
+      break;
+      }
+    }
     
         printf ("Running asteroids\n");
         inputState* userInput( inputState::create() );
