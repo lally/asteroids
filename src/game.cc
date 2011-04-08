@@ -1,4 +1,5 @@
 #include "game.h"
+#include "flags.h"
 
 static game::mode_t s_mode = game::kAloneMode;
 
@@ -127,7 +128,7 @@ namespace game
       
     std::vector<active::ptr> container;
       
-    generateRocks( state->level() % 3, container );
+    generateRocks( asteroid_factor * (state->level() % 3), container );
     generateTurrets( state->level() / 3, container );
     insertEvenlyDistributed( container );
 

@@ -19,6 +19,7 @@
 #include <SDL.h>
 #include "SDL_net.h"
 
+#include "flags.h"
 #include "vec2d.h"
 #include "passive.h"
 #include "input.h"
@@ -229,7 +230,7 @@ int main(int argc, char* argv[])
     IPaddress ipself;
     int channel;
 
-    while ((ch = getopt(argc, argv, "sc:h?")) != -1) {
+    while ((ch = getopt(argc, argv, "sc:h?a:b:")) != -1) {
       switch (ch) {
       case 's':
 	server = true;
@@ -243,6 +244,12 @@ int main(int argc, char* argv[])
 	  exit(1);
 	}
 	break;
+      case 'a':
+        asteroid_factor = atoi(optarg);
+        break;
+      case 'b':
+        bullet_factor = atoi(optarg);
+        break;
       default:
 	printf ("unknown option '%c'\n", ch);
       case 'h':
